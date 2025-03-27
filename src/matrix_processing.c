@@ -17,6 +17,71 @@ void matrix_cpy(image_matrix * m1, image_matrix * m2, int index_x, int index_y, 
     }
 }
 
+void linear_contrast(image_matrix * m) {
+    int min = 255, max = 0;
+
+    // Находим min и max
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            if ((m->matrix)[y][x] < min) min = (m->matrix)[y][x];
+            if ((m->matrix)[y][x] > max) max = (m->matrix)[y][x];
+        }
+    }
+
+    // Линейное преобразование
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            if (max != min) {  // Избегаем деления на 0
+                (m->matrix)[y][x] = ((m->matrix)[y][x] - min) * 255 / (max - min);
+            }
+        }
+    }
+}
+
+void gamma_correction(image_matrix * m, double gamma) {
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            double normalized = (double)(m->matrix)[y][x] / 255.0;
+            double corrected = pow(normalized, 1.0 / gamma);
+            (m->matrix)[y][x] = (int)(corrected * 255);
+        }
+    }
+}
+
+void thresholding(image_matrix * m, int threshold) {
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            (m->matrix)[y][x] = ((m->matrix)[y][x] > threshold) ? 255 : 0;
+        }
+    }
+}
+
+void histogram_equalization(image_matrix * m) {
+    int hist[256] = {0};
+    int cumul_hist[256] = {0};
+
+    // Строим гистограмму
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            hist[(m->matrix)[y][x]]++;
+        }
+    }
+
+    // Кумулятивная гистограмма
+    cumul_hist[0] = hist[0];
+    for (int i = 1; i < 256; i++) {
+        cumul_hist[i] = cumul_hist[i - 1] + hist[i];
+    }
+
+    // Нормализация и преобразование
+    int total_pixels = m->height * m->width;
+    for (int y = 0; y < m->height; y++) {
+        for (int x = 0; x < m->width; x++) {
+            (m->matrix)[y][x] = 255 * cumul_hist[(m->matrix)[y][x]] / total_pixels;
+        }
+    }
+}
+
 ascii_matrix * create_ascii_matrices(image_matrix* ascii_image_matrix) {
     ascii_matrix * matrices = (ascii_matrix *) malloc(sizeof(ascii_matrix) * ASCII_COUNT);
     for(int i = 0; i < ASCII_COUNT; i++) {
@@ -27,7 +92,7 @@ ascii_matrix * create_ascii_matrices(image_matrix* ascii_image_matrix) {
     return matrices;
 }
 
-char_matrix * conv_ascii_matrix(image_matrix * image, ascii_matrix * ascii_matrices, int count, int height, int width, int scale) {
+char_matrix * conv_ascii_matrix(image_matrix * image, ascii_matrix * ascii_matrices, int count, int height, int width, int scale, char * blacklist) {
     int result_height = scale * image->height / height;
     int result_width = scale * image->width / width;
     int ** result_int_matrix = (int**) malloc(sizeof(int*) * result_height);
@@ -47,7 +112,8 @@ char_matrix * conv_ascii_matrix(image_matrix * image, ascii_matrix * ascii_matri
             matrix_cpy(&m, image, j * width / (scale * 1.2), i * height / (scale * 1.2), height, width);
             for(int k = 0; k < count; k++) {
                 int conv = conv_int_matrices((ascii_matrices[k]).matrix.matrix, m.matrix, m.height, m.width);
-                if(conv > max_conv && (ascii_matrices[k]).ch != 'b' && (ascii_matrices[k]).ch != 'b' && (ascii_matrices[k]).ch != '$' && (ascii_matrices[k]).ch != 'X' && (ascii_matrices[k]).ch != 'e' && (ascii_matrices[k]).ch != 'o' && (ascii_matrices[k]).ch != '8' && (ascii_matrices[k]).ch != 'B' && (ascii_matrices[k]).ch != 'k' && (ascii_matrices[k]).ch != 'V' && (ascii_matrices[k]).ch != 'a' && (ascii_matrices[k]).ch != 'R' && (ascii_matrices[k]).ch != '0' && (ascii_matrices[k]).ch != 'd' && (ascii_matrices[k]).ch != 'N'  && (ascii_matrices[k]).ch != 'M'  && (ascii_matrices[k]).ch != 'B'  && (ascii_matrices[k]).ch != 'g'  && (ascii_matrices[k]).ch != 'O'  && (ascii_matrices[k]).ch != '@'  && (ascii_matrices[k]).ch != 'W' && (ascii_matrices[k]).ch != '#' && (ascii_matrices[k]).ch != '%' && (ascii_matrices[k]).ch != 'm' && (ascii_matrices[k]).ch != 'Q') {
+                char * in_blacklist = strchr(blacklist, (ascii_matrices[k]).ch);
+                if(conv > max_conv && in_blacklist == NULL) {
                     max_conv = conv;
                     max_conv_ch = (ascii_matrices[k]).ch;
                 }

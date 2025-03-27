@@ -66,22 +66,41 @@ void read_png_file(const char* filename, image_matrix * matrix) {
     // Преобразование в 8-битный grayscale (если нужно)
     // png_set_strip_16(png_ptr);  // Если PNG 16-битный — преобразуем в 8-битный
     // png_set_gray_to_rgb(png_ptr);  // Если нужно RGB
+
+    // Проверка наличия альфа-канала
+    int has_alpha = (png_get_color_type(png_ptr, info_ptr)) & PNG_COLOR_MASK_ALPHA;
+    printf("has alpha: %d\n", has_alpha);
+    // Преобразование в grayscale (если изображение цветное)
+    if (png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGB ||
+        png_get_color_type(png_ptr, info_ptr) == PNG_COLOR_TYPE_RGBA) {
+        png_set_rgb_to_gray_fixed(png_ptr, 1, -1, -1);  // Стандартные веса BT.709
+    }
     png_set_strip_16(png_ptr);
-    png_set_strip_alpha(png_ptr);
-    png_set_rgb_to_gray(png_ptr, PNG_ERROR_ACTION_NONE, -1, -1);
-    // Чтение изображения
+    // Обновляем информацию
+    png_read_update_info(png_ptr, info_ptr);
+
     png_bytep *row_pointers = (png_bytep*) malloc(sizeof(png_bytep) * height);
     for (int y = 0; (unsigned) y < height; y++) {
         row_pointers[y] = (png_byte*) malloc(png_get_rowbytes(png_ptr, info_ptr));
     }
     init_image_matrix(matrix, height, width);
     png_read_image(png_ptr, row_pointers);
-    
     // Заполнение матрицы (здесь можно выбрать канал R, G, B или яркость)
     for (int y = 0; (unsigned) y < height; y++) {
         png_byte* row = row_pointers[y];
         for (int x = 0; (unsigned) x < width; x++) {
-            (matrix->matrix)[y][x] = row[x];
+            if (has_alpha) {
+                // Если есть альфа-канал, проверяем прозрачность
+                png_byte alpha = row[x * 2 + 1];  // Для GRAY_ALPHA (Y, A)
+                if (alpha <= 127) {
+                    (matrix->matrix)[y][x] = 0;  // Полностью прозрачный → чёрный
+                } else {
+                    (matrix->matrix)[y][x] = row[x * 2];  // Яркость (Y)
+                }
+            } else {
+                // Если альфа-канала нет, просто берём яркость
+                (matrix->matrix)[y][x] = row[x];
+            }
         }
         free(row_pointers[y]);
     }

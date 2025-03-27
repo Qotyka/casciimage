@@ -20,16 +20,22 @@ void print_ascii_image(char_matrix * matrix) {
     }
 }
 
+#define BLACKLIST "@%Q#WgBmON0RMdXkabB8&VpZKD26EUHeho$A"
+
 int main() {
     char_matrix * resulting_ascii_art;
     image_matrix ascii_full_matrix;
     image_matrix image;
-    int scale = 4;
+    int scale = 1;
     read_png_file(FILEPATH, &ascii_full_matrix);
-    read_png_file("../test/images/test_image_4.png", &image);
+    read_png_file("../test/images/test_image_10.png", &image);
+    gamma_correction(&image, 0.45);
+    linear_contrast(&image);
+    // histogram_equalization(&image);
+    // thresholding(&image, 70);
 
     ascii_matrix * ascii_matrices = create_ascii_matrices(&ascii_full_matrix);
-    resulting_ascii_art = conv_ascii_matrix(&image, ascii_matrices, ASCII_COUNT, ASCII_SYM_HEIGHT, ASCII_SYM_WIDTH, scale);
+    resulting_ascii_art = conv_ascii_matrix(&image, ascii_matrices, ASCII_COUNT, ASCII_SYM_HEIGHT, ASCII_SYM_WIDTH, scale, BLACKLIST);
     print_ascii_image(resulting_ascii_art);
     return 0;
 }
